@@ -1,0 +1,79 @@
+#!/usr/bin/make -f
+# SPDX-License-Identifier: BSD-2-Clause
+# Copyright (c) 2026 The Blueberry Pie OS Authors
+
+include /usr/share/pietoolchain/rules.mk
+
+VERSION := 1153.18
+HDR := $(OBJ)/include
+FW  := System/Library/Frameworks/CoreFoundation.framework
+SOURCES := $(filter-out CFWindowsUtilities.c plconvert.c,$(notdir $(wildcard $(SRCROOT)/*.c)))
+OBJS := $(patsubst %.c,$(OBJ)/%.o,$(SOURCES))
+HEADERS := $(filter-out %/TargetConditionals.h,$(wildcard $(SRCROOT)/*.h))
+FLAGS := $(BASE_CFLAGS) -std=gnu99 -fcommon -fexceptions -DCF_BUILDING_CF=1 -DDEPLOYMENT_TARGET_MACOSX=1 \
+	-I$(HDR) -I$(CURDIR)/debian/extra -include $(SRCROOT)/CoreFoundation_Prefix.h
+DYLIB := $(OBJ)/CoreFoundation
+
+PUBLIC_HEADERS := CFArray.h CFBag.h CFBase.h CFBinaryHeap.h CFBitVector.h CFBundle.h CFByteOrder.h \
+	CFCalendar.h CFCharacterSet.h CFData.h CFDate.h CFDateFormatter.h CFDictionary.h CFError.h \
+	CFLocale.h CFMessagePort.h CFNumber.h CFNumberFormatter.h CFPlugIn.h CFPlugInCOM.h \
+	CFPreferences.h CFPropertyList.h CFRunLoop.h CFSet.h CFSocket.h CFStream.h CFString.h \
+	CFStringEncodingExt.h CFTimeZone.h CFTree.h CFURL.h CFURLAccess.h CFUUID.h \
+	CFUserNotification.h CFXMLNode.h CFXMLParser.h CFAvailability.h CFUtilities.h CoreFoundation.h \
+	CFMachPort.h
+PRIVATE_HEADERS := CFBundlePriv.h CFCharacterSetPriv.h CFError_Private.h CFLogUtilities.h CFPriv.h \
+	CFRuntime.h CFStorage.h CFStreamAbstract.h CFStreamPriv.h CFStreamInternal.h \
+	CFStringDefaultEncoding.h CFStringEncodingConverter.h CFStringEncodingConverterExt.h \
+	CFUniChar.h CFUnicodeDecomposition.h CFUnicodePrecomposition.h ForFoundationOnly.h \
+	CFBurstTrie.h CFICULogging.h
+
+all: $(DYLIB)
+
+$(HDR)/.copied: $(HEADERS)
+	mkdir -p $(HDR)/CoreFoundation
+	cp $(HEADERS) $(HDR)/CoreFoundation/
+	touch $@
+
+$(OBJ)/%.o: $(SRCROOT)/%.c $(HDR)/.copied
+	$(CC) $(FLAGS) -c $< -o $@
+
+NOTICE := $(OBJ)/apsl-notice
+$(NOTICE):
+	@mkdir -p $(OBJ)
+	printf '%s\n' 'This program contains Covered Code under the Apple Public Source License 2.0.' \
+		'Its Source Code is available under that License from https://github.com/blueberrypieos/cf.' > $@
+
+$(DYLIB): $(OBJS) $(NOTICE)
+	$(CC) $(BASE_LDFLAGS) -Wl,-sectcreate,__TEXT,__source,$(NOTICE) -dynamiclib -install_name /$(FW)/Versions/A/CoreFoundation \
+		-Wl,-init,___CFInitialize -compatibility_version 150 -current_version $(VERSION) \
+		-Wl,-alias_list,$(SRCROOT)/SymbolAliases \
+		-Wl,-sectcreate,__UNICODE,__csbitmaps,$(SRCROOT)/CFCharacterSetBitmaps.bitmap \
+		-Wl,-sectcreate,__UNICODE,__properties,$(SRCROOT)/CFUniCharPropertyDatabase.data \
+		-Wl,-sectcreate,__UNICODE,__data,$(SRCROOT)/CFUnicodeData-L.mapping \
+		-Wl,-segprot,__UNICODE,r,r $(OBJS) -licucore -o $@
+
+define framework
+	rm -rf $(1)/$(FW)
+	install -d $(1)/$(FW)/Versions/A/Resources $(1)/$(FW)/Versions/A/Headers \
+		$(1)/$(FW)/Versions/A/PrivateHeaders
+	ln -sf A $(1)/$(FW)/Versions/Current
+	ln -sf Versions/Current/Resources $(1)/$(FW)/Resources
+	ln -sf Versions/Current/Headers $(1)/$(FW)/Headers
+	ln -sf Versions/Current/PrivateHeaders $(1)/$(FW)/PrivateHeaders
+	ln -sf Versions/Current/CoreFoundation $(1)/$(FW)/CoreFoundation
+	install -m 644 $(SRCROOT)/Info.plist $(1)/$(FW)/Versions/A/Resources/
+	install -m 755 $(DYLIB) $(1)/$(FW)/Versions/A/CoreFoundation
+endef
+install: all
+	$(call framework,$(ROOT))
+	cd $(SRCROOT) && install -m 644 $(PUBLIC_HEADERS) $(ROOT)/$(FW)/Versions/A/Headers/
+	cd $(SRCROOT) && install -m 644 $(PRIVATE_HEADERS) $(ROOT)/$(FW)/Versions/A/PrivateHeaders/
+
+.PHONY: all install
+
+binary-arch: build-arch
+	$(MAKE) -f /usr/share/pietoolchain/rules.mk binary-arch
+	install -d $(PKG)/$(FW)/Versions/A/Headers $(PKG)/$(FW)/Versions/A/PrivateHeaders
+	dpkg-gencontrol -p$(PIE_PACKAGE) -P$(PKG)
+	find $(PKG) -exec touch -h -d @$(SOURCE_DATE_EPOCH) {} +
+	dpkg-deb --root-owner-group -Zxz --build $(PKG) ..

@@ -1,0 +1,27 @@
+Source: cf
+Section: libs
+Priority: optional
+Maintainer: Maxwell <maxwell@blueberrypieos.com>
+Build-Depends: pietoolchain (>= 0.1.0), icu-dev (>= 76142.5.1.200+ds1)
+Standards-Version: 4.7.3
+Homepage: https://github.com/apple-oss-distributions/CF
+Vcs-Git: https://github.com/blueberrypieos/cf.git -b blueberry-pie-os/latest
+Vcs-Browser: https://github.com/blueberrypieos/cf
+Rules-Requires-Root: no
+
+Package: corefoundation
+Architecture: darwin-arm64
+Essential: yes
+Priority: required
+Depends: icu, libsystem
+Description: CoreFoundation framework (CF-Lite)
+ CoreFoundation provides strings, collections, property lists, URLs,
+ Unicode handling, and run loops.
+
+Package: corefoundation-dev
+Section: libdevel
+Priority: optional
+Architecture: darwin-arm64
+Depends: corefoundation (= ${binary:Version}), icu-dev
+Description: CoreFoundation framework (CF-Lite): development files
+ Public and private framework headers for building against CoreFoundation.
