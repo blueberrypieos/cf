@@ -187,8 +187,8 @@ Files: debian/*
 Copyright: 2026 The Blueberry Pie OS Authors
 License: BSD-2-Clause
 
-Files: debian/patches/*.patch
-Copyright: 1998-2014 Apple Inc.
+Files: debian/patches/0001-arm64-libdispatch-CFMachPort.patch
+Copyright: 1995-2015 Apple Inc.
  2026 The Blueberry Pie OS Authors
 License: APSL-2.0
 
